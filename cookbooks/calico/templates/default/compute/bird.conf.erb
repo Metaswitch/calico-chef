@@ -7,12 +7,16 @@ if ( net != 0.0.0.0/0 ) then {
    reject;
 }
 
+# Specify logging file
+log /var/log/bird.log all;
+debug protocols all;
+
 # Configure synchronization between BIRD's routing tables and the
 # kernel.
 protocol kernel {
   learn;          # Learn all alien routes from the kernel
   persist;        # Don't remove routes on bird shutdown
-  scan time 2;    # Scan kernel routing table every 20 seconds
+  scan time 2;    # Scan kernel routing table every 2 seconds
   device routes;
   import filter import_kernel;
   export all;     # Default is export none
@@ -20,7 +24,7 @@ protocol kernel {
 
 # Watch interface up/down events.
 protocol device {
-  scan time 2;    # Scan interfaces every 10 seconds
+  scan time 2;    # Scan interfaces every 2 seconds
 }
 
 protocol direct {

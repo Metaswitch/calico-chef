@@ -1,15 +1,3 @@
-/*
- *      This is an example configuration file.
- */
-
-# Yes, even shell-like comments work...
-
-# Configure logging
-#log syslog { debug, trace, info, remote, warning, error, auth, fatal, bug };
-#log stderr all;
-#log "tmp" all;
-
-# Override router ID
 router id <%= node[:ipaddress] %>;
 
 filter import_kernel {
@@ -19,10 +7,14 @@ filter import_kernel {
    reject;
 }
 
+# Specify logging file
+log /var/log/bird6.log all;
+debug protocols all;
+
 protocol kernel {
         learn;                  # Learn all alien routes from the kernel
         persist;                # Don't remove routes on bird shutdown
-        scan time 2;           # Scan kernel routing table every 20 seconds
+        scan time 2;            # Scan kernel routing table every 2 seconds
         device routes;
         import filter import_kernel;
         export all;             # Default is export none
@@ -31,7 +23,7 @@ protocol kernel {
 
 # This pseudo-protocol watches all interface up/down events.
 protocol device {
-        scan time 2;           # Scan interfaces every 10 seconds
+        scan time 2;           # Scan interfaces every 2 seconds
 }
 
 protocol direct {
