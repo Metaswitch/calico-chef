@@ -34,6 +34,25 @@ package "ntp" do
     action [:install]
 end
 
+# Configure sysctl so that forwarding is enabled, and router solicitations
+# are accepted.  Allows SLAAC to provide an IPv6 address to the 
+# control node without disabling forwarding. 
+# ipv4.all.forwarding=1: enable IPv4 forwarding.
+# ipv6.all.forwarding=1: enable IPv6 forwarding.
+# ipv6.all.accept_ra=2: allow router solicitations/advertisements.
+# ipv6.eth0.forwarding=0: additional config in case kernel doesn't support
+#                    accept_ra=2.  Forwarding will still be enabled
+#                    due to the ipv6.all config.
+bash "config-sysctl" do
+    user "root"
+    code <<-EOH
+    sysctl net.ipv4.conf.all.forwarding=1
+    sysctl net.ipv6.conf.all.forwarding=1
+    sysctl net.ipv6.conf.all.accept_ra=2
+    sysctl net.ipv6.conf.eth0.forwarding=0
+    EOH
+end
+
 # Installing MySQL is a pain. We can't use the OpenStack cookbook because it
 # lacks features we need, so we need to do it by hand. First, prevent Ubuntu
 # from asking us questions when we install the package. Then, install the
@@ -501,19 +520,6 @@ service "neutron-server" do
     action [:nothing]
 end
 
-bash "basic-networks" do
-    action [:run]
-    user "root"
-    environment node["run_env"]
-    code <<-EOH
-    neutron net-create demo-net --shared
-    neutron subnet-create demo-net --name demo-subnet \
-      --gateway 10.28.0.1 10.28.0.0/16
-    neutron subnet-create --ip-version 6 demo-net --name demo6-subnet \
-      --gateway fd5f:5d21:845:1c2e:2::1 fd5f:5d21:845:1c2e:2::/80 
-    EOH
-    not_if "neutron net-list | grep demo-net"
-end
 
 # HORIZON
 
@@ -664,4 +670,21 @@ template "/etc/calico/acl_manager.cfg" do
     owner "root"
     group "root"
     notifies :start, "service[calico-acl-manager]", :immediately
+end
+
+
+# DEPLOMENT SPECIFIC CONFIGURATION
+
+bash "basic-networks" do
+    action [:run]
+    user "root"
+    environment node["run_env"]
+    code <<-EOH
+    neutron net-create demo-net --shared
+    neutron subnet-create demo-net --name demo-subnet \
+      --gateway 10.28.0.1 10.28.0.0/16
+    neutron subnet-create --ip-version 6 demo-net --name demo6-subnet \
+      --gateway fd5f:5d21:845:1c2e:2::1 fd5f:5d21:845:1c2e:2::/80
+    EOH
+    not_if "neutron net-list | grep demo-net"
 end

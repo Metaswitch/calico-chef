@@ -1,8 +1,10 @@
 # Find the controller hostname.
 controller = search(:node, "role:controller")[0][:fqdn]
 
-# Find the BGP neighbors, which is everyone except ourselves.
-bgp_neighbors = search(:node, "role:compute").select { |n| n[:ipaddress] != node[:ipaddress] }
+# Find the other compute nodes.  This is everyone except ourselves.
+# These are both our BGP neighbors and a list of nodes that we need to share passwordless
+# nova authentication with.
+other_compute = search(:node, "role:compute").select { |n| n[:ipaddress] != node[:ipaddress] }
 
 # Tell apt about the Calico repository server.
 template "/etc/apt/sources.list.d/calico.list" do
@@ -29,6 +31,25 @@ template "/etc/apt/preferences" do
     variables({
         package_host: URI.parse(node[:calico][:package_source].split[0]).host
     })
+end
+
+# Configure sysctl so that forwarding is enabled, and router solicitations
+# are accepted.  Allows SLAAC to provide an IPv6 address to each compute
+# node without disabling forwarding. 
+# ipv4.all.forwarding=1: enable IPv4 forwarding.
+# ipv6.all.forwarding=1: enable IPv6 forwarding.
+# ipv6.all.accept_ra=2: allow router solicitations/advertisements.
+# ipv6.eth0.forwarding=0: additional config in case kernel doesn't support
+#                    accept_ra=2.  Forwarding will still be enabled
+#                    due to the ipv6.all config.
+bash "config-sysctl" do
+    user "root"
+    code <<-EOH
+    sysctl net.ipv4.conf.all.forwarding=1
+    sysctl net.ipv6.conf.all.forwarding=1
+    sysctl net.ipv6.conf.all.accept_ra=2
+    sysctl net.ipv6.conf.eth0.forwarding=0
+    EOH
 end
 
 # Install a few needed packages.
@@ -123,6 +144,54 @@ service "nova-api-metadata" do
     action [:nothing]
 end
 
+# Set up Nova passwordless authentication.
+execute "nova-logon-shell" do
+    user "root"
+    command "usermod -s /bin/bash nova"
+end
+
+# Create SSH key for nova user.
+execute "nova-ssh-keygen" do
+    user "root"
+    command "sudo -u nova ssh-keygen -q -t rsa -N '' -f /var/lib/nova/.ssh/id_rsa"
+    creates "/var/lib/nova/.ssh/id_rsa"
+    not_if { ::File.exists?("/var/lib/nova/.ssh/id_rsa")}
+end 
+
+# Create authorized keys file for nova.
+file "/var/lib/nova/.ssh/authorized_keys" do
+    owner "nova"
+    group "nova"
+    mode "0600"
+    action :create_if_missing
+end
+
+# Add SSH config to automatically accept unknown hosts
+cookbook_file "/var/lib/nova/.ssh/config" do
+    source "config.ssh"
+    owner "nova"
+    group "nova"
+    mode "0600"
+end
+
+# Expose public key in attributes
+ruby_block "expose-public-key" do
+    block do
+        node.default['nova_public_key'] = ::File.read("/var/lib/nova/.ssh/id_rsa.pub")
+    end
+end
+
+# Add the public key for the other compute nodes to our authorized_keys.
+ruby_block "load-compute-node-keys" do
+    block do
+        file = Chef::Util::FileEdit.new("/var/lib/nova/.ssh/authorized_keys")
+        other_compute.each do |n|
+            key = n['nova_public_key']
+            file.insert_line_if_no_match(/#{key}/, key)
+	end
+	file.write_file
+    end
+end
 
 # NETWORKING
 
@@ -188,7 +257,7 @@ template "/etc/bird/bird.conf" do
     mode "0640"
     source "compute/bird.conf.erb"
     variables({
-        bgp_neighbors: bgp_neighbors
+        bgp_neighbors: other_compute
     })
     owner "bird"
     group "bird"
@@ -199,7 +268,7 @@ template "/etc/bird/bird6.conf" do
     mode "0640"
     source "compute/bird6.conf.erb"
     variables({
-        bgp_neighbors: bgp_neighbors
+        bgp_neighbors: other_compute
     })
     owner "bird"
     group "bird"
