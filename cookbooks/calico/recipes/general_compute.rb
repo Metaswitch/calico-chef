@@ -1,5 +1,6 @@
 # Find the controller hostname.
 controller = search(:node, "role:controller")[0][:fqdn]
+controller_ip = search(:node, "role:controller")[0][:ipaddress]
 
 # Find the BGP neighbors, which is everyone except ourselves.
 bgp_neighbors = search(:node, "role:compute").select { |n| n[:ipaddress] != node[:ipaddress] }
@@ -29,6 +30,14 @@ template "/etc/apt/preferences" do
     variables({
         package_host: URI.parse(node[:calico][:package_source].split[0]).host
     })
+end
+apt_repository "calico-ppa" do
+    uri node[:calico][:etcd_ppa]
+    distribution node["lsb"]["codename"]
+    components ["main"]
+    keyserver "keyserver.ubuntu.com"
+    key node[:calico][:etcd_ppa_fingerprint]
+    notifies :run, "execute[apt-get update]", :immediately
 end
 
 # Install a few needed packages.
@@ -176,6 +185,35 @@ package "bird" do
     action [:install]
     notifies :create, "template[/etc/bird/bird.conf]", :immediately
     notifies :create, "template[/etc/bird/bird6.conf]", :immediately
+end
+
+# Install etcd and friends.
+package "python-etcd" do
+    action :install
+end
+package "etcd" do
+    action :install
+end
+template "/etc/init/etcd.conf" do
+    mode "0640"
+    source "compute/etcd.conf.erb"
+    variables({
+        controller: controller,
+        controller_ip: controller_ip
+    })
+    owner "root"
+    group "root"
+    notifies :run, "bash[etcd-setup]", :immediately
+end
+
+# This action removes the etcd database and restarts it.
+bash "etcd-setup" do
+    action [:nothing]
+    user "root"
+    code <<-EOH
+    rm -rf /var/lib/etcd/*
+    service etcd restart
+    EOH
 end
 
 package "calico-compute" do

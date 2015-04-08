@@ -7,3 +7,8 @@ default["calico"]["admin_token"]    = "abcdef"
 default["calico"]["package_source"] = "http://binaries.projectcalico.org/repo ./"
 default["calico"]["package_key"]    = "http://binaries.projectcalico.org/repo/key"
 
+# Location of etcd packages. The expectation is that this will always be a
+# PPA, as we do not ship generic binary packages for etcd.
+default["calico"]["etcd_ppa"] = "http://ppa.launchpad.net/project-calico/icehouse/ubuntu/"
+default["calico"]["etcd_ppa_fingerprint"] = "3D40A6A7"
+
