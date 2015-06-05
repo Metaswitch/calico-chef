@@ -23,7 +23,6 @@ protocol kernel {
         learn;                  # Learn all alien routes from the kernel
         persist;                # Don't remove routes on bird shutdown
         scan time 2;           # Scan kernel routing table every 20 seconds
-        device routes;
         import filter import_kernel;
         export all;             # Default is export none
 #       kernel table 5;         # Kernel table to synchronize with (default: main)
@@ -40,17 +39,18 @@ protocol direct {
 }
 
 # Peer with all neighbours.
-<% @bgp_neighbors.each do |n| %>
-protocol bgp <%= n[:fqdn].gsub(/[^0-9a-z]/i, '') %> {
-  description "Connection to BGP route reflector";
+<% @bgp_neighbors.each_with_index do |n, index| %>
+# <%= n[:fqdn] %>
+protocol bgp <%= "peer#{index}" %> {
+  description <%= "\"BGP Connection to #{n[:fqdn]}\"" %>;
   local as 64511;
-  neighbor <%= n[:ip6address] %> as 64511;
+  neighbor <%= @get_ipv6.call(n) %> as 64511;
   multihop;
   import all;
   export all;
   next hop self;    # Disable next hop processing and always advertise our
                     # local address as nexthop
-  source address <%= node[:ip6address] %>;  # The local address we use for the TCP connection
+  source address <%= @get_ipv6.call(node) %>;  # The local address we use for the TCP connection
 }
 
 <% end %>
