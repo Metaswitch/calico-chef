@@ -203,7 +203,7 @@ allow_overlapping_ips = True
 # Logging driver
 # notification_driver = neutron.openstack.common.notifier.log_notifier
 # RPC driver.
-notification_driver = neutron.openstack.common.notifier.rpc_notifier
+# notification_driver = neutron.openstack.common.notifier.rpc_notifier
 
 # default_notification_level is used to form actual topic name(s) or to set logging level
 # default_notification_level = INFO
@@ -265,14 +265,14 @@ dhcp_agents_per_network = 10
 # Number of separate worker processes to spawn.  The default, 0, runs the
 # worker thread in the current process.  Greater than 0 launches that number of
 # child processes as workers.  The parent process manages them.
-# api_workers = 0
+api_workers = 2
 
 # Number of separate RPC worker processes to spawn.  The default, 0, runs the
 # worker thread in the current process.  Greater than 0 launches that number of
 # child processes as RPC workers.  The parent process manages them.
 # This feature is experimental until issues are addressed and testing has been
 # enabled for various plugins for compatibility.
-# rpc_workers = 0
+rpc_workers = 2
 
 # Sets the value of TCP_KEEPIDLE in seconds to use for each server socket when
 # starting API server. Not supported on OS X.
@@ -361,7 +361,7 @@ dhcp_agents_per_network = 10
 
 # Number of security group rules allowed per tenant. A negative value means
 # unlimited.
-# quota_security_group_rule = 100
+quota_security_group_rule = 1000
 
 # Number of vips allowed per tenant. A negative value means unlimited.
 # quota_vip = 10
@@ -474,4 +474,3 @@ service_provider=VPN:openswan:neutron.services.vpn.service_drivers.ipsec.IPsecVP
 # service_provider=VPN:cisco:neutron.services.vpn.service_drivers.cisco_ipsec.CiscoCsrIPsecVPNDriver:default
 # Uncomment the line below to use Embrane heleos as Load Balancer service provider.
 # service_provider=LOADBALANCER:Embrane:neutron.services.loadbalancer.drivers.embrane.driver.EmbraneLbaas:default
-
